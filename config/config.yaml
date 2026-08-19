@@ -1,0 +1,25 @@
+# Central runtime configuration.
+# Mirrors src/config.py defaults so notebooks, scripts, and the API stay in sync.
+
+data:
+  raw_train_csv: data/raw/train.csv
+  processed_dir: data/processed
+
+selectors:
+  default_store_nbr: 2
+  default_family: "GROCERY II"
+
+features:
+  lags: [1, 7, 14]
+  rolling_window: 7
+
+model:
+  n_estimators: 50
+  random_state: 42
+  validation_days: 15
+  forecast_horizon: 15
+
+api:
+  host: "127.0.0.1"
+  port: 8000
+  cors_allow_origins: ["http://localhost:3000"]

@@ -1,0 +1,43 @@
+# --- Data (raw data is never committed; document provenance in data/README.md) ---
+data/raw/
+data/processed/*.csv
+*.csv
+!data/README.md
+
+# Generated panel store: ~54 MB of binary partitions, rebuilt in ~30s with
+# `python -m src.io_store`. Derived data does not belong in version control,
+# and pickles execute code on load.
+data/processed/panel/
+*.pkl
+*.parquet
+
+# --- Model artifacts ---
+models/*.joblib
+models/*.pkl
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+
+# --- Node / frontend ---
+app/frontend/node_modules/
+app/frontend/build/
+
+# --- Secrets / env ---
+.env*
+
+# --- Archives should never live in a repo ---
+*.zip
+*.rar
+_archive/
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
