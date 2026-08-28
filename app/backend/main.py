@@ -237,6 +237,37 @@ def segments(limit: int = Query(50, ge=1, le=500)) -> list[dict]:
     return pd.read_csv(path).head(limit).replace({np.nan: None}).to_dict("records")
 
 
+@app.get("/api/recommendations")
+def recommendations(
+    store_nbr: int | None = Query(None, description="Filter to one store"),
+    action: str | None = Query(None, description="Filter by action, e.g. DISCOUNT"),
+    limit: int = Query(100, ge=1, le=1000),
+) -> dict:
+    """Prescriptive offer / discount / stock actions from the recommender.
+
+    Served from the pre-computed ``reports/analysis/recommendations.csv`` so the
+    request path stays a lookup — the recommendations are refreshed by the batch
+    job (`python -m src.recommend`), not on request.
+    """
+    from src.config import ANALYSIS_DIR
+
+    path = ANALYSIS_DIR / "recommendations.csv"
+    if not path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Recommendations not generated. Run: python -m src.recommend",
+        )
+    df = pd.read_csv(path)
+    if store_nbr is not None:
+        df = df[df["store_nbr"] == store_nbr]
+    if action is not None:
+        df = df[df["action"].str.upper() == action.upper()]
+
+    counts = df["action"].value_counts().to_dict()
+    rows = df.head(limit).replace({np.nan: None}).to_dict("records")
+    return {"count": len(df), "action_counts": counts, "recommendations": rows}
+
+
 if __name__ == "__main__":
     import uvicorn
 

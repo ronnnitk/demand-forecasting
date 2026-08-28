@@ -4,6 +4,7 @@ import HeroSection from './components/sections/Introduction';
 import DataOverview from './components/sections/DataOverview';
 import TrendsAnalysis from './components/sections/TrendsAnalysis';
 import ForecastSection from './components/sections/ForecastSection';
+import Recommendations from './components/sections/Recommendations';
 import ExploreData from './components/sections/ExploreData';
 import Insights from './components/sections/Insights';
 import { useSalesData } from './hooks/useSalesData';
@@ -171,15 +172,20 @@ function App() {
           loading={loading}
         />
         
-        <ForecastSection 
-          data={allData} 
-          loading={loading} 
+        <ForecastSection
+          data={allData}
+          loading={loading}
           selectedStore={selectedStore}
           selectedFamily={selectedFamily}
           forecastDays={forecastDays}
           metrics={metrics}
         />
-        
+
+        <Recommendations
+          selectedStore={selectedStore}
+          isBackendConnected={isBackendConnected}
+        />
+
         <ExploreData data={allData} loading={loading} />
         <Insights />
       </main>
