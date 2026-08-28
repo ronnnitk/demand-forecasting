@@ -64,6 +64,23 @@ GLOBAL_MODEL_PARAMS = {
     "random_state": RANDOM_STATE,
 }
 
+# --- Self-adaptive retraining --------------------------------------------------
+RETRAIN_MAX_AGE_DAYS = 7          # refresh at least weekly even absent drift
+DRIFT_TOLERANCE = 0.15            # retrain if recent WAPE is >15% worse than at train time
+PROMOTE_MARGIN = 0.01            # challenger must beat champion WAPE by >1% to be promoted
+ADAPTIVE_HOLDOUT_DAYS = 15        # window both models are scored on, head-to-head
+
+# --- Prescriptive recommendations (offers / discounts) -------------------------
+# Baseline price-elasticity of demand used when a series has too little promo
+# history to estimate its own. Negative: a discount raises units sold.
+DEFAULT_PRICE_ELASTICITY = -1.2
+# Gross margin assumed when a per-family margin is unknown (share of price).
+DEFAULT_GROSS_MARGIN = 0.25
+# Candidate discount depths the recommender evaluates.
+DISCOUNT_GRID = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
+# A series whose forecast falls this far below its trailing demand is "slowing".
+SLOWDOWN_THRESHOLD = 0.15
+
 # --- Analysis / evaluation -----------------------------------------------------
 SEASONAL_PERIOD = 7                          # weekly seasonality for MASE/RMSSE
 BACKTEST_FOLDS = 3                           # rolling-origin folds
