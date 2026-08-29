@@ -33,6 +33,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .calendar_events import (
+    EVENT_CATEGORICAL_FEATURES,
+    event_features,
+)
 from .config import (
     DATE_COL,
     EWM_SPANS,
@@ -103,6 +107,8 @@ def calendar_features(df: pd.DataFrame) -> pd.DataFrame:
             out[f"sin_{tag}"] = np.sin(angle).astype("float32")
             out[f"cos_{tag}"] = np.cos(angle).astype("float32")
 
+    # Festival / holiday / season drivers (also date-derived, so leak-free).
+    out = event_features(out)
     return out
 
 
@@ -205,7 +211,9 @@ def build_features(
 # Columns that are never model inputs.
 NON_FEATURES = {DATE_COL, TARGET_COL, SERIES_KEY, "family"}
 # Treated as categorical splits by HistGradientBoostingRegressor.
-CATEGORICAL_FEATURES = ["store_nbr", "family_code", "dayofweek", "month"]
+CATEGORICAL_FEATURES = [
+    "store_nbr", "family_code", "dayofweek", "month", *EVENT_CATEGORICAL_FEATURES,
+]
 
 
 def feature_columns(df: pd.DataFrame) -> list[str]:
