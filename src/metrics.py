@@ -117,6 +117,31 @@ def accuracy_pct(y_true, y_pred) -> float:
     return max(0.0, float((1 - (mae(y_true, y_pred) / denom)) * 100))
 
 
+def pinball_loss(y_true, y_pred, quantile: float) -> float:
+    """Quantile (pinball) loss — the metric a probabilistic forecast is judged on.
+
+    Penalises under-prediction by ``quantile`` and over-prediction by
+    ``1 - quantile``, so the minimiser of the P90 loss really is the 90th
+    percentile. Averaged over the window.
+    """
+    y_true, y_pred = _arrays(y_true, y_pred)
+    error = y_true - y_pred
+    return float(np.mean(np.maximum(quantile * error, (quantile - 1) * error)))
+
+
+def interval_coverage(y_true, lower, upper) -> float:
+    """Share of actuals that fall inside [lower, upper].
+
+    A calibrated 80% interval should cover ~0.80 of actuals. Much less means the
+    band is too tight (stock-outs will surprise you); much more means it is too
+    wide (you carry needless safety stock).
+    """
+    y_true = np.asarray(y_true, dtype=float).ravel()
+    lower = np.asarray(lower, dtype=float).ravel()
+    upper = np.asarray(upper, dtype=float).ravel()
+    return float(np.mean((y_true >= lower) & (y_true <= upper)))
+
+
 def evaluate_all(y_true, y_pred, y_train=None, seasonal_period: int = SEASONAL_PERIOD) -> dict:
     """Full metric set for one forecast window."""
     out = {

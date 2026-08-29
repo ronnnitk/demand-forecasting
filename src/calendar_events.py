@@ -30,6 +30,10 @@ import pandas as pd
 
 from .config import DATE_COL
 
+# The 2016 Ecuador earthquake and its ~6-week relief-demand window.
+EARTHQUAKE_START = pd.Timestamp("2016-04-16")
+EARTHQUAKE_END = pd.Timestamp("2016-05-31")
+
 # --- Fixed-date national holidays (month, day) -> name -------------------------
 FIXED_HOLIDAYS: dict[tuple[int, int], str] = {
     (1, 1): "new_year",
@@ -194,10 +198,18 @@ def event_features(df: pd.DataFrame) -> pd.DataFrame:
     # but real seasonal split for an equatorial market with no summer/winter.
     calendar["wet_season"] = calendar[DATE_COL].dt.month.isin(range(1, 6)).astype("int8")
 
+    # The 16 April 2016 (Mw 7.8) earthquake drove a documented, weeks-long spike
+    # in grocery/water/first-aid demand as relief efforts ran. Flagging the
+    # response window lets the model attribute that spike to the shock rather
+    # than mis-learning it as seasonality it will wrongly repeat every April.
+    quake = (calendar[DATE_COL] >= EARTHQUAKE_START) & (calendar[DATE_COL] <= EARTHQUAKE_END)
+    calendar["is_earthquake_response"] = quake.astype("int8")
+
     feature_cols = [
         "is_holiday", "holiday_code", "days_to_holiday", "days_since_holiday",
         "is_holiday_eve", "is_festival", "festival_code",
         "is_christmas_season", "is_mothers_day", "is_black_friday", "wet_season",
+        "is_earthquake_response",
     ]
     merged = out.merge(calendar[[DATE_COL, *feature_cols]], on=DATE_COL, how="left")
     merged.index = out.index
@@ -210,5 +222,6 @@ EVENT_FEATURE_COLUMNS = [
     "is_holiday", "holiday_code", "days_to_holiday", "days_since_holiday",
     "is_holiday_eve", "is_festival", "festival_code",
     "is_christmas_season", "is_mothers_day", "is_black_friday", "wet_season",
+    "is_earthquake_response",
 ]
 EVENT_CATEGORICAL_FEATURES = ["holiday_code", "festival_code"]

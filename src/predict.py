@@ -72,6 +72,7 @@ def forecast_panel(
     meta: dict,
     days: int = FORECAST_HORIZON,
     promo_plan: pd.DataFrame | None = None,
+    quantile_models: dict[float, object] | None = None,
 ) -> pd.DataFrame:
     """Recursive multi-step forecast for every series in ``history``, together.
 
@@ -80,7 +81,14 @@ def forecast_panel(
     with the same keys plus ``date``; otherwise the recent average is carried
     forward.
 
-    Returns a long frame of ``date``, ``store_nbr``, ``family``, ``forecast``.
+    ``quantile_models`` optionally maps a quantile (e.g. ``0.1``) to a model
+    trained on that quantile's loss; each contributes a ``q{pct}`` column of
+    prediction bounds. The **median (point) forecast is always the value fed
+    back** into the recursive lags, so the intervals are consistent with the
+    central path rather than drifting off it.
+
+    Returns a long frame of ``date``, ``store_nbr``, ``family``, ``forecast``
+    (plus one ``q{pct}`` column per quantile model, if supplied).
     """
     cols = meta["feature_columns"]
     family_codes = meta["family_codes"]
@@ -119,6 +127,9 @@ def forecast_panel(
 
         step_out = feats.loc[mask, [DATE_COL, *KEY_COLS]].copy()
         step_out["forecast"] = preds
+        if quantile_models:
+            for q, qmodel in quantile_models.items():
+                step_out[f"q{int(round(q * 100))}"] = np.clip(qmodel.predict(step_feats), 0, None)
         outputs.append(step_out)
 
         # Feed the prediction back so the next step's lags see it.

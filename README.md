@@ -20,7 +20,9 @@ promotion, and **festival/holiday** features.
 | **Festival & seasonal drivers** | `src/calendar_events.py` | Ecuador holidays (fixed + Easter-derived movable feasts), Christmas/Mother's-Day/Black-Friday windows, holiday-proximity and wet-season features — the events that actually move grocery demand. |
 | **Self-adapting retraining** | `src/adaptive.py` | Monitors live accuracy, retrains on **drift or age**, and promotes a challenger only if it beats the champion. The engine keeps itself current and logs every decision. |
 | **Prescriptive offers/discounts** | `src/recommend.py` | Detects softening demand, estimates each item's price-elasticity from its measured promo uplift, and recommends the **profit-optimal discount** — or *stock up* ahead of festivals. |
-| **Honest evaluation** | `src/backtest.py`, `src/baselines.py`, `src/metrics.py` | Rolling-origin backtest against seasonal-naive/Croston baselines; MASE/RMSSE/WAPE, not just MAE. |
+| **Prediction intervals** | `src/quantiles.py` | Quantile (pinball-loss) models give P10/P90 bands, **conformally calibrated** on a holdout (raw 54% → 80% coverage). |
+| **Inventory policy** | `src/inventory.py` | Turns the interval into safety stock and **reorder points** at a target service level. |
+| **Honest evaluation** | `src/backtest.py`, `src/baselines.py`, `src/metrics.py` | Rolling-origin backtest against seasonal-naive/Croston baselines; MASE/RMSSE/WAPE + pinball/coverage, not just MAE. |
 | **Scales with data, not series** | `src/io_store.py` | Raw CSV converted once into per-store partitions; every job streams the slice it needs. |
 | **Segmentation → policy** | `src/analysis/` | ABC/XYZ 9-box, promo-uplift, seasonality profiling drive where compute is spent. |
 
@@ -78,7 +80,11 @@ python -m src.forecast_batch
 # 4. Prescriptive actions: offers / discounts / stock-ups
 python -m src.recommend                 # → reports/analysis/recommendations.csv
 
-# 5. Keep the model current, automatically
+# 5. Prediction intervals + inventory policy
+python -m src.quantiles                  # train + calibrate P10/P90 models
+python -m src.inventory                  # → reports/analysis/inventory_plan.csv
+
+# 6. Keep the model current, automatically
 python -m src.adaptive                  # monitor → (drift/age) → challenge → promote
 ```
 

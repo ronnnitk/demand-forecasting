@@ -54,7 +54,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATE: dict = {"model": None, "meta": None, "index": None, "error": None}
+STATE: dict = {
+    "model": None, "meta": None, "index": None, "error": None,
+    "quantile_models": None, "quantile_scale": 1.0,
+}
 
 
 @app.on_event("startup")
@@ -79,6 +82,17 @@ def load_artifacts() -> None:
         # The API still serves history and baseline forecasts without a model.
         STATE["error"] = str(exc)
         print(f"[startup] no global model: {exc}", flush=True)
+
+    # Optional: prediction-interval models. Absent them, forecasts stay point-only.
+    try:
+        from src.quantiles import load_bundle  # noqa: E402
+
+        bundle = load_bundle()
+        STATE["quantile_models"] = bundle["models"]
+        STATE["quantile_scale"] = bundle.get("scale", 1.0)
+        print(f"[startup] quantile models loaded (scale {STATE['quantile_scale']:.2f})", flush=True)
+    except FileNotFoundError:
+        print("[startup] no quantile models — forecasts will be point-only", flush=True)
 
 
 @lru_cache(maxsize=8)
@@ -173,13 +187,29 @@ def get_forecast(
                 detail=f"Global model unavailable ({STATE['error']}). "
                 "Train it with: python -m src.train_global",
             )
-        forecast_df = forecast_panel(series, STATE["model"], STATE["meta"], days=days)
-        future = [
-            {"date": row[DATE_COL].strftime("%Y-%m-%d"), "sales": None,
-             "forecast": round(float(row["forecast"]), 2)}
-            for _, row in forecast_df.iterrows()
-        ]
-        model_name = "global_gbm"
+        if STATE["quantile_models"]:
+            from src.quantiles import forecast_with_intervals  # noqa: E402
+
+            forecast_df = forecast_with_intervals(
+                series, STATE["model"], STATE["meta"], STATE["quantile_models"],
+                days=days, scale=STATE["quantile_scale"],
+            )
+            future = [
+                {"date": row[DATE_COL].strftime("%Y-%m-%d"), "sales": None,
+                 "forecast": round(float(row["forecast"]), 2),
+                 "forecast_lower": round(float(row["forecast_lower"]), 2),
+                 "forecast_upper": round(float(row["forecast_upper"]), 2)}
+                for _, row in forecast_df.iterrows()
+            ]
+            model_name = "global_gbm+intervals"
+        else:
+            forecast_df = forecast_panel(series, STATE["model"], STATE["meta"], days=days)
+            future = [
+                {"date": row[DATE_COL].strftime("%Y-%m-%d"), "sales": None,
+                 "forecast": round(float(row["forecast"]), 2)}
+                for _, row in forecast_df.iterrows()
+            ]
+            model_name = "global_gbm"
     else:
         values = series[TARGET_COL].to_numpy(float)
         preds = seasonal_moving_average(values, days)
@@ -266,6 +296,30 @@ def recommendations(
     counts = df["action"].value_counts().to_dict()
     rows = df.head(limit).replace({np.nan: None}).to_dict("records")
     return {"count": len(df), "action_counts": counts, "recommendations": rows}
+
+
+@app.get("/api/inventory")
+def inventory(
+    store_nbr: int | None = Query(None, description="Filter to one store"),
+    limit: int = Query(100, ge=1, le=1000),
+) -> dict:
+    """Safety-stock and reorder points from the probabilistic forecast.
+
+    Served from ``reports/analysis/inventory_plan.csv``, refreshed by the batch
+    job (`python -m src.inventory`).
+    """
+    from src.config import ANALYSIS_DIR
+
+    path = ANALYSIS_DIR / "inventory_plan.csv"
+    if not path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Inventory plan not generated. Run: python -m src.inventory",
+        )
+    df = pd.read_csv(path)
+    if store_nbr is not None:
+        df = df[df["store_nbr"] == store_nbr]
+    return {"count": len(df), "items": df.head(limit).replace({np.nan: None}).to_dict("records")}
 
 
 if __name__ == "__main__":

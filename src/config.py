@@ -81,6 +81,11 @@ DISCOUNT_GRID = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
 # A series whose forecast falls this far below its trailing demand is "slowing".
 SLOWDOWN_THRESHOLD = 0.15
 
+# --- Probabilistic forecasting / inventory -------------------------------------
+QUANTILES = (0.1, 0.9)            # prediction-interval bounds (nominal 80% band)
+DEFAULT_LEAD_TIME_DAYS = 7        # replenishment lead time for reorder points
+DEFAULT_SERVICE_LEVEL = 0.95      # target in-stock probability for safety stock
+
 # --- Analysis / evaluation -----------------------------------------------------
 SEASONAL_PERIOD = 7                          # weekly seasonality for MASE/RMSSE
 BACKTEST_FOLDS = 3                           # rolling-origin folds
