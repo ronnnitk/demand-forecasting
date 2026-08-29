@@ -2,6 +2,20 @@ export interface SalesRecord {
   date: string;
   sales: number | null;
   forecast: number | null;
+  // Present when the backend serves prediction intervals (quantile models).
+  forecast_lower?: number | null;
+  forecast_upper?: number | null;
+}
+
+export interface InventoryItem {
+  store_nbr: number;
+  family: string;
+  lead_time_days: number;
+  mean_lead_demand: number;
+  sigma_lead: number;
+  safety_stock: number;
+  reorder_point: number;
+  service_level: number;
 }
 
 export type TimeRange = '6m' | '1y';

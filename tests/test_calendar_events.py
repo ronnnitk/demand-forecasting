@@ -56,6 +56,15 @@ def test_event_features_added_for_every_row_without_dropping():
         assert out[col].notna().all()
 
 
+def test_earthquake_response_window_is_flagged():
+    df = pd.DataFrame({"date": pd.to_datetime(
+        ["2016-04-15", "2016-04-16", "2016-05-31", "2016-06-01", "2017-04-16"]
+    )})
+    out = event_features(df)
+    # Window is 2016-04-16 .. 2016-05-31 inclusive; nothing before/after or in 2017.
+    assert out["is_earthquake_response"].tolist() == [0, 1, 1, 0, 0]
+
+
 def test_events_do_not_depend_on_sales():
     """Same dates, different sales -> identical event features (no leakage)."""
     dates = pd.date_range("2016-01-01", periods=120, freq="D")
