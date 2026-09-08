@@ -86,6 +86,11 @@ QUANTILES = (0.1, 0.9)            # prediction-interval bounds (nominal 80% band
 DEFAULT_LEAD_TIME_DAYS = 7        # replenishment lead time for reorder points
 DEFAULT_SERVICE_LEVEL = 0.95      # target in-stock probability for safety stock
 
+# --- Scenario planning (what-if simulation) -------------------------------------
+SCENARIO_HORIZON = 15                        # default days simulated per scenario
+# Standard comparison set offered by `python -m src.scenario --compare`.
+SCENARIO_PRICE_GRID = (0.05, 0.0, -0.10, -0.20)   # +5% rise, no change, -10%, -20%
+
 # --- Analysis / evaluation -----------------------------------------------------
 SEASONAL_PERIOD = 7                          # weekly seasonality for MASE/RMSSE
 BACKTEST_FOLDS = 3                           # rolling-origin folds
