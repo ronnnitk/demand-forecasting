@@ -110,11 +110,17 @@ def forecast_panel(
         if promo_plan is not None:
             planned = promo_plan[promo_plan[DATE_COL] == next_date]
             future = future.merge(planned[[*KEY_COLS, PROMO_COL]], on=KEY_COLS, how="left")
-            future[PROMO_COL] = future[PROMO_COL].fillna(
-                future.set_index(KEY_COLS).index.map(fallback_promo)
-            )
+            missing = future[PROMO_COL].isna()
+            if missing.any():
+                # pandas .map() on a MultiIndex returns an Index, not a Series, so
+                # it can't be handed to .fillna() directly (which wants a scalar,
+                # dict or Series) — fill the missing rows positionally instead.
+                looked_up = future.loc[missing, KEY_COLS].set_index(KEY_COLS).index.map(fallback_promo)
+                future.loc[missing, PROMO_COL] = np.asarray(looked_up, dtype=float)
         else:
-            future[PROMO_COL] = future.set_index(KEY_COLS).index.map(fallback_promo)
+            future[PROMO_COL] = np.asarray(
+                future.set_index(KEY_COLS).index.map(fallback_promo), dtype=float
+            )
         future[PROMO_COL] = future[PROMO_COL].astype(float).fillna(0.0)
 
         work = pd.concat([work, future[work.columns]], ignore_index=True)
