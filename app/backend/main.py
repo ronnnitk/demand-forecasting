@@ -32,12 +32,15 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src import io_store  # noqa: E402
+from src.analysis.promotions import promo_uplift  # noqa: E402
 from src.baselines import seasonal_moving_average  # noqa: E402
-from src.config import DATE_COL, PROMO_COL, TARGET_COL  # noqa: E402
+from src.config import DATE_COL, PROMO_COL, SCENARIO_HORIZON, TARGET_COL  # noqa: E402
 from src.data_processing import regularize  # noqa: E402
 from src.forecast_batch import load_forecasts, load_metrics  # noqa: E402
 from src.metrics import evaluate_all  # noqa: E402
 from src.predict import forecast_panel  # noqa: E402
+from src.recommend import elasticity_from_uplift  # noqa: E402
+from src.scenario import Scenario, compare_scenarios, simulate_series  # noqa: E402
 from src.train_global import load as load_global_model  # noqa: E402
 
 app = FastAPI(
@@ -251,6 +254,70 @@ def get_forecast(
                     for k, v in metrics.items()},
         "data": records + future,
     }
+
+
+@app.get("/api/scenario")
+def scenario(
+    store_nbr: int = Query(2, description="Store number"),
+    family: str = Query("GROCERY II", description="Product family"),
+    days: int = Query(SCENARIO_HORIZON, ge=1, le=30, description="Days to simulate"),
+    promo: bool | None = Query(
+        None, description="Force promotion on/off for the horizon; omit to leave it unchanged"
+    ),
+    price_change: float = Query(
+        0.0, ge=-0.9, le=1.0, description="Fractional price move, e.g. -0.10 for a 10% cut"
+    ),
+    demand_multiplier: float = Query(
+        1.0, gt=0.0, le=5.0, description="Blanket shock factor, 1.15 = +15%"
+    ),
+    compare: bool = Query(
+        False, description="Return the standard comparison set instead of one custom scenario"
+    ),
+) -> dict:
+    """What-if simulation: price a merchandising plan against the forecast.
+
+    Runs the recursive forecast for one series (once for business-as-usual, plus
+    once more when the scenario changes promotion) and returns demand / revenue /
+    profit deltas vs baseline. Single series only — this re-runs the model, so it
+    is inference, not a lookup like ``/api/recommendations``.
+    """
+    if STATE["model"] is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Global model unavailable ({STATE['error']}). "
+            "Train it with: python -m src.train_global",
+        )
+    series = _series(store_nbr, family)
+    if len(series) < 60:
+        raise HTTPException(status_code=400, detail="Insufficient history for this series.")
+
+    uplift = promo_uplift(series).get("uplift_adjusted")
+    elasticity = elasticity_from_uplift(uplift)
+
+    if compare:
+        table = compare_scenarios(
+            series, STATE["model"], STATE["meta"], days=days, uplift_adjusted=uplift
+        )
+        return {
+            "store_nbr": store_nbr, "family": family, "days": days,
+            "elasticity": round(float(elasticity), 2),
+            "scenarios": table.replace({np.nan: None}).to_dict("records"),
+        }
+
+    plan = Scenario(
+        name="custom", promotion=promo, price_change_pct=price_change,
+        demand_multiplier=demand_multiplier,
+    )
+    result = simulate_series(
+        series, STATE["model"], STATE["meta"], plan, days=days, uplift_adjusted=uplift
+    )
+    daily = result.pop("daily")
+    result["daily"] = [
+        {"date": row[DATE_COL].strftime("%Y-%m-%d"),
+         "baseline": float(row["baseline"]), "scenario": float(row["scenario"])}
+        for _, row in daily.iterrows()
+    ]
+    return {"store_nbr": store_nbr, "family": family, **result}
 
 
 @app.get("/api/analysis/segments")
