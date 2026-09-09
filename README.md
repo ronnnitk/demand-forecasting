@@ -20,6 +20,7 @@ promotion, and **festival/holiday** features.
 | **Festival & seasonal drivers** | `src/calendar_events.py` | Ecuador holidays (fixed + Easter-derived movable feasts), Christmas/Mother's-Day/Black-Friday windows, holiday-proximity and wet-season features — the events that actually move grocery demand. |
 | **Self-adapting retraining** | `src/adaptive.py` | Monitors live accuracy, retrains on **drift or age**, and promotes a challenger only if it beats the champion. The engine keeps itself current and logs every decision. |
 | **Prescriptive offers/discounts** | `src/recommend.py` | Detects softening demand, estimates each item's price-elasticity from its measured promo uplift, and recommends the **profit-optimal discount** — or *stock up* ahead of festivals. |
+| **Scenario planner (what-if)** | `src/scenario.py` | Simulates a merchandising plan — promotion, price move, or demand shock — against the forecast and prices the difference in **units, revenue and gross profit** so a plan is judged on money, not vibes. Promotion runs through the model's own learned response; a price move uses the same elasticity curve as the recommender. |
 | **Prediction intervals** | `src/quantiles.py` | Quantile (pinball-loss) models give P10/P90 bands, **conformally calibrated** on a holdout (raw 54% → 80% coverage). |
 | **Inventory policy** | `src/inventory.py` | Turns the interval into safety stock and **reorder points** at a target service level. |
 | **Honest evaluation** | `src/backtest.py`, `src/baselines.py`, `src/metrics.py` | Rolling-origin backtest against seasonal-naive/Croston baselines; MASE/RMSSE/WAPE + pinball/coverage, not just MAE. |
@@ -47,13 +48,14 @@ demand-forecasting/
 │   ├── forecast_batch.py      # batch-forecast every series → serving lookup
 │   ├── adaptive.py            # self-adapting drift-triggered retraining  ← new
 │   ├── recommend.py           # prescriptive offers / discounts / stock    ← new
+│   ├── scenario.py            # what-if simulation (promo / price / shock)  ← new
 │   ├── baselines.py  backtest.py  metrics.py  evaluate.py
 │   ├── visualization.py  utils.py
 │   └── analysis/     # profiling, seasonality, promotions, segmentation, report
 ├── models/         # global_model.joblib, archive/, retrain_log.csv   (gitignored)
 ├── reports/        # figures/ + analysis/ + written reports
 ├── app/            # backend/ (FastAPI) + frontend/ (React + TypeScript)
-├── tests/          # 85 pytest unit tests
+├── tests/          # 119 pytest unit tests
 └── config/  requirements.txt  environment.yml  LICENSE  .gitignore
 ```
 
@@ -79,6 +81,9 @@ python -m src.forecast_batch
 
 # 4. Prescriptive actions: offers / discounts / stock-ups
 python -m src.recommend                 # → reports/analysis/recommendations.csv
+
+# 4b. What-if: test a promo / price move / demand shock before committing
+python -m src.scenario --store 44 --family "GROCERY II" --compare
 
 # 5. Prediction intervals + inventory policy
 python -m src.quantiles                  # train + calibrate P10/P90 models
@@ -127,10 +132,35 @@ For each series it compares the forecast to trailing demand and emits one action
 Elasticity `ε` is inferred from each item's weekday-adjusted promo uplift; every
 recommendation ships with expected demand, revenue and profit deltas.
 
+## The scenario planner (`src/scenario.py`)
+
+The recommender answers *"what should I do?"*. The scenario planner answers the
+follow-up: *"what happens if I do **X** instead?"* — for a plan you already have
+in mind. Three levers, each modelled the way the data supports:
+
+- **Promotion** — flips `onpromotion` on for the horizon and re-runs the
+  recursive forecast, so the uplift is the **model's own learned response**, not
+  a bolt-on multiplier.
+- **Price move** — no price column exists to learn from, so a rise or cut is
+  applied through the same constant-elasticity curve `Q1/Q0 = (P1/P0)^ε` the
+  recommender uses, with `ε` inferred from the series' promo uplift.
+- **Demand shock** — a stated blanket multiplier for events the model can't know
+  about (heat wave, competitor closing, marketing push).
+
+Each scenario is priced in units, revenue and gross profit vs business-as-usual;
+`--compare` ranks the standard promo/price set by profit delta. Served live at
+`GET /api/scenario` (single-series inference, not a batch lookup).
+
+```bash
+python -m src.scenario --store 44 --family "GROCERY II" --promo --days 15
+python -m src.scenario --store 44 --family "GROCERY II" --price-change -0.10
+python -m src.scenario --store 44 --family "GROCERY II" --compare
+```
+
 ## Testing
 
 ```bash
-pytest            # 85 tests: leakage tripwires, calendar maths, adaptive & discount logic
+pytest            # 119 tests: leakage tripwires, calendar maths, adaptive, discount & scenario logic
 ```
 
 ## License
