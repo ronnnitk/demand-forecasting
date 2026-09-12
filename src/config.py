@@ -91,6 +91,12 @@ SCENARIO_HORIZON = 15                        # default days simulated per scenar
 # Standard comparison set offered by `python -m src.scenario --compare`.
 SCENARIO_PRICE_GRID = (0.05, 0.0, -0.10, -0.20)   # +5% rise, no change, -10%, -20%
 
+# --- Stockout-aware demand (censored-demand correction) -----------------------
+STOCKOUT_MIN_SELLING_SHARE = 0.70   # only correct series that sell on >=70% of days
+STOCKOUT_WINDOW_DAYS = 28           # half-width of the same-weekday expectation window
+STOCKOUT_MIN_EXPECTED_UNITS = 1.0   # a zero day needs this much expected demand to look like a stock-out
+STOCKOUT_MAX_CORRECTION_SHARE = 0.10  # never rewrite more than 10% of a series' days
+
 # --- Analysis / evaluation -----------------------------------------------------
 SEASONAL_PERIOD = 7                          # weekly seasonality for MASE/RMSSE
 BACKTEST_FOLDS = 3                           # rolling-origin folds
